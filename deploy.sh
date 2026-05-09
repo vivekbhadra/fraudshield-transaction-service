@@ -19,19 +19,19 @@ error()   { echo -e "${RED}[ERROR]${RESET} $*" >&2; }
 header()  { echo -e "\n${BOLD}${CYAN}══ $* ══${RESET}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FRAUDSHIELD_DIR="${1:-${SCRIPT_DIR}}"
+UMBRELLA_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 NS="fraudshield"
 
 TXN_IMAGE="fraudshield-transaction:1.0.0"
 FRAUD_IMAGE="fraudshield-fraud-detection:1.0.2"
 
-TXN_BUILD_CTX="${FRAUDSHIELD_DIR}/transaction-service"
-FRAUD_BUILD_CTX="${FRAUDSHIELD_DIR}/fraud-detection-service"
+TXN_BUILD_CTX="${SCRIPT_DIR}"
+FRAUD_BUILD_CTX="${UMBRELLA_DIR}/fraudshield-fraud-detection-service"
 
-MANIFESTS_DIR="${FRAUDSHIELD_DIR}/k8s"
-TXN_K8S_DIR="${FRAUDSHIELD_DIR}/transaction-service/k8s"
-FRAUD_K8S_FILE="${FRAUDSHIELD_DIR}/fraud-detection-service/k8s/fraud-detection.yaml"
+MANIFESTS_DIR="${SCRIPT_DIR}/k8s"
+TXN_K8S_DIR="${SCRIPT_DIR}/k8s"
+FRAUD_K8S_FILE="${FRAUD_BUILD_CTX}/k8s/fraud-detection.yaml"
 
 ROLLOUT_TIMEOUT="300s"
 WAIT_TIMEOUT=240
@@ -320,7 +320,8 @@ eval "$(minikube docker-env)"
 kubectl config use-context minikube >/dev/null
 success "kubectl context set to minikube."
 
-require_path "${FRAUDSHIELD_DIR}"
+require_path "${SCRIPT_DIR}"
+require_path "${UMBRELLA_DIR}"
 require_path "${TXN_BUILD_CTX}/Dockerfile"
 require_path "${FRAUD_BUILD_CTX}/Dockerfile"
 require_path "${MANIFESTS_DIR}/00-namespace-configmap.yaml"
@@ -333,11 +334,11 @@ require_path "${FRAUD_K8S_FILE}"
 
 header "Build Images inside Minikube"
 
-info "Building ${TXN_IMAGE}..."
+info "Building ${TXN_IMAGE} from ${TXN_BUILD_CTX}..."
 docker build -t "${TXN_IMAGE}" "${TXN_BUILD_CTX}"
 success "Built ${TXN_IMAGE}."
 
-info "Building ${FRAUD_IMAGE}..."
+info "Building ${FRAUD_IMAGE} from ${FRAUD_BUILD_CTX}..."
 docker build -t "${FRAUD_IMAGE}" "${FRAUD_BUILD_CTX}"
 success "Built ${FRAUD_IMAGE}."
 
@@ -398,7 +399,6 @@ header "Deploy Application Services"
 
 kubectl apply -f "${TXN_K8S_DIR}/deployment.yaml"
 kubectl apply -f "${TXN_K8S_DIR}/service.yaml"
-
 kubectl apply -f "${FRAUD_K8S_FILE}"
 
 info "Removing fraud-detection HPA for stable local Minikube deployment..."
