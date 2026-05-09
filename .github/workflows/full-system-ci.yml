@@ -1,0 +1,77 @@
+name: Full System CI
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    branches:
+      - master
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  test-and-build:
+    name: Run TDD tests and build both services
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout transaction service
+        uses: actions/checkout@v4
+        with:
+          repository: vivekbhadra/fraudshield-transaction-service
+          path: fraudshield-transaction-service
+
+      - name: Checkout fraud detection service
+        uses: actions/checkout@v4
+        with:
+          repository: vivekbhadra/fraudshield-fraud-detection-service
+          path: fraudshield-fraud-detection-service
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run transaction service TDD tests
+        working-directory: fraudshield-transaction-service
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m pytest tests/ -v --junitxml=transaction-test-report.xml
+
+      - name: Run fraud detection service TDD tests
+        working-directory: fraudshield-fraud-detection-service
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m pytest tests/ -v --junitxml=fraud-detection-test-report.xml
+
+      - name: Build transaction service Docker image
+        working-directory: fraudshield-transaction-service
+        run: |
+          docker build -t fraudshield-transaction:${{ github.sha }} .
+
+      - name: Build fraud detection service Docker image
+        working-directory: fraudshield-fraud-detection-service
+        run: |
+          docker build -t fraudshield-fraud-detection:${{ github.sha }} .
+
+      - name: Upload transaction service test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: transaction-service-test-report
+          path: fraudshield-transaction-service/transaction-test-report.xml
+
+      - name: Upload fraud detection service test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fraud-detection-service-test-report
+          path: fraudshield-fraud-detection-service/fraud-detection-test-report.xml
